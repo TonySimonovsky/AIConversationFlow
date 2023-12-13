@@ -1,5 +1,5 @@
 # AI Conversation Flow Library
-Current Version: 0.0.2. A very early version, for presentation purposes. Use at your own risk.
+Current Version: 0.0.2.1. A very early version, for presentation purposes. Use at your own risk.
 
 This library provides a framework for managing conversation flows with LLM's, that are composable, controllable and easily testable.
 
