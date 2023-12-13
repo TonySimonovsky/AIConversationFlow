@@ -181,6 +181,9 @@ This library is a work in progress and may not handle all possible conversation 
 
 ## Changelog
 
+### Version 0.0.2.1 - 2023-12-13
+- Added very simple functionality to use callbacks in the MicroFlow's.
+
 ### Version 0.0.2 - 2023-12-13
 - Added the ability to freely transition to any MicroFlow, including the current one, after finishing the current MicroFlow.
 - Introduced a new completion condition for MicroFlows.

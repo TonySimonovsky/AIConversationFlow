@@ -21,7 +21,7 @@ sbs_logger.addHandler(sbs_handler)
 
 
 
-__version__ = '0.0.2'
+__version__ = '0.0.2.1'
 
 
 
@@ -189,7 +189,7 @@ class MicroFlow():
     }
 
     
-    def __init__(self, name, system_prompt, start_with, completion_condition, next_steps, goodbye_message=None, macroflow=None):
+    def __init__(self, name, system_prompt, start_with, completion_condition, next_steps, goodbye_message=None, callback=None, macroflow=None):
         self.id = time.time()
         self.name = name
         self.status = "pending"
@@ -200,6 +200,7 @@ class MicroFlow():
         self.next_mif = None
         self.next_steps = next_steps
         self.goodbye_message = goodbye_message
+        self.callback = callback
         # self._initial_state = self._get_state()
         # here we set the name of the MIF we need to go to once current one has finished
         self.goto = None
@@ -267,13 +268,28 @@ class MicroFlow():
         This orchestrates the MIF.
         """
 
-        # print(f"MACROFLOW FROM INSIDE MIF: {self.macroflow}")
+        sbs_logger.info("STARTED")
+
+        cbres = None
+        if self.callback:
+            cbres = self.callback()
+
+        sbs_logger.info(f"cbres: {cbres}")
+
 
         if self.status == "pending":
-            self.macroflow.messages.append({ "role": "system", "content": self.system_prompt })
+            sp = self.system_prompt
+            if cbres:
+                sp = sp.format(cbres=cbres)
+
+            sbs_logger.info(f"sp: {sp}")
+
+            self.macroflow.messages.append({ "role": "system", "content": sp })
             self.status = "in_progress"
             # self.macroflow.current_mif = self
             self.macroflow.just_finished_mif = False
+
+
 
 
         if user_message and not (self.macroflow.just_finished_mif and self.start_with == "AI"):
@@ -319,6 +335,7 @@ class MicroFlow():
                 return ai_message
 
         
+
         # print(f"\n\n\n{self.macroflow.messages}\n\n\n")
         ai_message = self.llm.run(messages=self.macroflow.messages,llm_params=self.llm_params)['choices'][0]['message']['content']
         self.macroflow.messages.append({"role":"assistant","content":ai_message})
