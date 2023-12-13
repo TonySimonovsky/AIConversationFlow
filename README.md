@@ -171,7 +171,7 @@ As you can see, the first MicroFlow only required me to answer, while the second
 
 ## Video Demo
 
-<div style="position: relative; padding-bottom: 61.30319148936171%; height: 0;"><iframe src="https://www.loom.com/embed/60e0a2f4d6fc47a792f7ec633ad1f8ea?sid=b747336f-533e-4aa8-a184-6560070e60f2" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe></div>
+https://www.loom.com/embed/60e0a2f4d6fc47a792f7ec633ad1f8ea?sid=b747336f-533e-4aa8-a184-6560070e60f2
 
 ## Requirements
 
