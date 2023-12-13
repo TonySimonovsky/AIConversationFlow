@@ -1,5 +1,5 @@
 # AI Conversation Flow Library
-Current Version: 0.01. The very first draft version, for presentation purposes. Use at your own risk.
+Current Version: 0.0.2. A very early version, for presentation purposes. Use at your own risk.
 
 This library provides a framework for managing conversation flows with LLM's, that are composable, controllable and easily testable.
 
@@ -14,17 +14,25 @@ The solution was to create an abstraction layer for managing conversation flows,
 
 ## Classes
 
-### LLM
-
-This class is a wrapper for the OpenAI API. It provides a method `run` to send a list of messages to the API and receive a response.
-
 ### MacroFlow
 
 This class represents a high-level conversation flow. It maintains a list of MicroFlows, which are executed in order. The `run` method executes the next pending MicroFlow and returns the AI's response.
 
 ### MicroFlow
 
-This class represents a lower-level conversation flow. It has a `run` method that sends a message to the AI and returns its response. The flow can be marked as completed based on certain conditions.
+This class represents a lower-level conversation flow. It has a `run` method that sends a message to the AI and returns its response. The flow can be marked as completed based on certain conditions. The `finish` method allows the flow to transition to any other MicroFlow, including the current one.
+
+Completion Conditions
+
+The `MicroFlow` class supports two types of completion conditions:
+
+1. **Answer**: The MicroFlow is marked as completed when the user provides an answer. This is specified with `completion_condition={"type":"answer"}`.
+
+2. **LLM Reasoning**: The MicroFlow uses another instance of LLM to determine whether it's completed. This is specified with `completion_condition={"type":"llm_reasoning", "details": {...}}`. The `details` dictionary should include a `system_prompt` for the LLM and `llm_params` specifying the parameters for the LLM call.
+
+### LLM
+
+This class is a wrapper for the OpenAI API. It provides a method `run` to send a list of messages to the API and receive a response.
 
 ## Usage
 
@@ -37,6 +45,8 @@ macroflow = MacroFlow("You are an interviewer, collecting information from the H
 Then, build the flow from steps:
 
 ```
+# Now, build the flow from steps
+
 # Initializing the MicroFlow
 microflow_collect_info_job = MicroFlow(
     name="collect_info_job",
@@ -45,11 +55,14 @@ microflow_collect_info_job = MicroFlow(
     # this system prompt will be added to the MacroFlow communication messages once thsi MicroFlow starts
     system_prompt="Collect information about the Human's job.",
     # here we indicate the microflow completion condition as the first user's message
-    completion_condition={"type":"answer"}
+    completion_condition={
+        "type":"answer"
+    },
+    next_steps=["collect_info_hobbies"],
+    goodbye_message="Thank you!"
 )
-
-# Adding the MicroFlow to the MacroFlow
-macroflow.add_microflow(microflow_collect_info_job)
+# Adding the MicroFlow to the MacroFlow library
+macroflow.register_microflow(microflow_collect_info_job)
 
 # Initializing another MicroFlow
 microflow_collect_info_hobbies = MicroFlow(
@@ -74,38 +87,63 @@ microflow_collect_info_hobbies = MicroFlow(
             """,
             "llm_params": llm_params_gpt35turbo1106json
         }
-    }
+    },
+    next_steps=["propose_new_hobby"]
 )
-macroflow.add_microflow(microflow_collect_info_hobbies)
+macroflow.register_microflow(microflow_collect_info_hobbies)
+
+microflow_propose_new_hobby = MicroFlow(
+    name="propose_new_hobby",
+    start_with="AI",
+    system_prompt="""Based on your knowledge about the Human propose new hobbies, one at a time and ask if the person wants another recommedation (instruction for the Human: "answer 'yes' if you want another one, otherwise - 'no'").""",
+    completion_condition={
+        "type": "answer",
+        # another variation of "answer" completion condition
+        #   here, we define specific user answers we are monitoring
+        #   and different statuses we'll set to the microflow depending on the answer
+        #   for the "completed" status we also set the name of the microstep we'll go to
+        #   notice how "yes" will trigger another instance of the same step,
+        #   while "no" finalizes the flow
+        "details": {
+            "yes": { "goto": "propose_new_hobby" },
+            "no": {  }
+        }
+    },
+    next_steps=["propose_new_hobby","completed"]
+)
+macroflow.register_microflow(microflow_propose_new_hobby)
+
+# add the step, we'll start our flow with
+macroflow.add_step("collect_info_job")
 ```
 
 Finally, here's a how integration into a front-end would look like (this one is for Jupyter, but you can easily tweak it to use in a real front-end):
 
 ```
-# simple integration of the flow into a front-end 
-
 user_message = None
+
 while 1:
+    
     ai_message = macroflow.run(user_message=user_message)
+
     if macroflow.status == "completed":
         break
 
-    print(f"AI: {ai_message}\n")
-
-    if not macroflow.current_mif:
-        break
+    if ai_message:
+        print(f"AI: {ai_message}\n")
 
     # if we just finished previous microflow and the next starts with AI
-    if macroflow.just_finished_mif and macroflow.current_mif.start_with == "AI":
+    if macroflow.just_finished_mif and macroflow.cur_mif().start_with == "AI":
         user_message = None
         continue
 
     print(f"User:")
     user_message = input()
     print(f"\n")
+
 ```
 
-And here's what it would output:
+And here's an example of a conversation using the flow above:
 
 > AI: Can you please provide me with information about your current job?
 >
@@ -143,7 +181,12 @@ This library is a work in progress and may not handle all possible conversation 
 
 ## Changelog
 
-### Version 0.01 - 2023-12-12
+### Version 0.0.2 - 2023-12-13
+- Added the ability to freely transition to any MicroFlow, including the current one, after finishing the current MicroFlow.
+- Introduced a new completion condition for MicroFlows.
+- Improved the management of the stack of MicroFlows.
+
+### Version 0.0.1 - 2023-12-12
 - Initial release of the AI Conversation Flow Library. 
 
 ## Roadmap
