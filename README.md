@@ -169,9 +169,11 @@ And here's an example of a conversation using the flow above:
 
 As you can see, the first MicroFlow only required me to answer, while the second one didn't finish before it collected 3 hobbies from me.
 
-## Video Demo
+## Video Demo's
 
-https://www.loom.com/share/60e0a2f4d6fc47a792f7ec633ad1f8ea
+The Very First Demo: https://www.loom.com/share/60e0a2f4d6fc47a792f7ec633ad1f8ea
+
+Grumpy CTO quest game: https://www.loom.com/share/5476267a38c4457a873c0e21ded1e709
 
 ## Requirements
 
