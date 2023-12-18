@@ -1,8 +1,10 @@
 from openai import OpenAI, APITimeoutError
 import json
 import copy
+import threading
 import logging
 import time
+import inspect
 
 
 
@@ -28,26 +30,26 @@ __version__ = '0.0.2.1'
 
 
 
-class LLM():
-    """
-    2023.12.12: temp LLM wrapper
-    [ ] separate wrappers for different LLM's
-    """
+# class LLM():
+#     """
+#     2023.12.12: temp LLM wrapper
+#     [ ] separate wrappers for different LLM's
+#     """
 
-    openai_client = OpenAI()
+#     openai_client = OpenAI()
 
-    def run(self, messages, llm_params):
-        try:
-            llm_response = self.openai_client.chat.completions.create(**llm_params, messages=messages)
-            llm_response = json.loads(llm_response.model_dump_json())
-        except APITimeoutError:
-            print("The function took too long to complete, so it was aborted.")
-            return
-        except Exception as e:
-            print(f"Some error when getting response from AI: {e}.\n\n")
-            return
+#     def run(self, messages, llm_params):
+#         try:
+#             llm_response = self.openai_client.chat.completions.create(**llm_params, messages=messages)
+#             llm_response = json.loads(llm_response.model_dump_json())
+#         except APITimeoutError:
+#             print("The function took too long to complete, so it was aborted.")
+#             return
+#         except Exception as e:
+#             print(f"Some error when getting response from AI: {e}.\n\n")
+#             return
         
-        return llm_response
+#         return llm_response
 
 
 
@@ -130,6 +132,8 @@ class MacroFlow():
 
 
 
+    def serialize(self):
+        return json.dumps(vars(self), default=str)
 
     
 
@@ -146,15 +150,27 @@ class MacroFlow():
 
         current_microflow = self.steps[-1]
         sbs_logger.info(f"Steps: {self.steps}")
-        sbs_logger.info(f"current_microflow: {current_microflow}")
+        sbs_logger.info(f"current_microflow (type {type(current_microflow)}): {current_microflow}")
 
 
+        # if this was the last mif in the maf, so we are finishing the maf
         if current_microflow.status == "completed":
+
+            sbs_logger.info(f"Flow completed")
+
             ai_message = "Flow completed"
             self.status = "completed"
 
         else:
+            sbs_logger.info(f"just_finished_mif before: {self.just_finished_mif}")
+
             ai_message = current_microflow.run(user_message)
+
+            sbs_logger.info(f"just_finished_mif after: {self.just_finished_mif}")
+
+            if self.just_finished_mif:
+                ai_message = None
+
             # if current_microflow.status == "completed":
             #     ai_message = "Microflow completed"
 
@@ -168,6 +184,7 @@ class MacroFlow():
         sbs_logger.info(f"state: {self}")
         sbs_logger.info(f"return: ai_message: {ai_message}")
 
+        sbs_logger.info(f"just_finished_mif end: {self.just_finished_mif}")
 
         return ai_message
 
@@ -181,15 +198,8 @@ class MicroFlow():
 
     """
 
-    llm = LLM()
-    llm_params = {
-        "model": "gpt-3.5-turbo",
-        "temperature": 0,
-        "timeout": 5
-    }
-
     
-    def __init__(self, name, system_prompt, start_with, completion_condition, next_steps, goodbye_message=None, callback=None, macroflow=None):
+    def __init__(self, name, llm, llm_params, system_prompt, start_with, completion_condition, next_steps, goodbye_message=None, callback=None, macroflow=None):
         self.id = time.time()
         self.name = name
         self.status = "pending"
@@ -201,10 +211,9 @@ class MicroFlow():
         self.next_steps = next_steps
         self.goodbye_message = goodbye_message
         self.callback = callback
-        # self._initial_state = self._get_state()
-        # here we set the name of the MIF we need to go to once current one has finished
+        self.llm = llm
+        self.llm_params = llm_params
         self.goto = None
-
 
 
 
@@ -216,20 +225,39 @@ class MicroFlow():
         # print(f"Cloned: {cloned}")
         return cloned
 
-    # def _get_state(self):
-    #     return copy.deepcopy({attr: getattr(self, attr) for attr in vars(self)})
 
 
-    # def reset_to_initial_state(self):
-    #     for attr, value in self._initial_state.items():
-    #         setattr(self, attr, value)
+    def __deepcopy__(self, memo):
+        # Create a new instance of the class including required params
+        init_arg_names = inspect.getfullargspec(self.__init__).args[1:]  # Exclude 'self'
+        new_obj = type(self)(**{k: v for k, v in vars(self).items() if k in init_arg_names})
+        memo[id(self)] = new_obj  
+
+        # Copy all non-OpenAI attributes
+        for name, value in self.__dict__.items():
+            if name != 'llm':
+                setattr(new_obj, name, copy.deepcopy(value, memo))
+
+        # Create a 
+        new_obj.llm = type(self.llm)()  
+
+        return new_obj
+
+
+
+    def __str__(self):
+        return self.name
+
+
+
 
 
     def finish(self, goto=None):
+
+        sbs_logger.info(f"Finishing the mif {self.name} (status {self.status})")
+
         self.status = "completed"
         self.macroflow.just_finished_mif = True
-
-        # print(f"steps before: {self.macroflow.steps}")
 
         # finalizing the flow
         if not goto:
@@ -241,25 +269,11 @@ class MicroFlow():
         
         return self.goodbye_message
 
-        # print(f"steps after: {self.macroflow.steps}")
-
-        # self.macroflow.previous_mif(self)
-        # self.macroflow.previous_mif = self
-        # self.macroflow.just_finished_mif = True
-
-        # if go_to:
-            
-        #     self.macroflow.current_mif = self.macroflow.next_mif
-        # else:
-        #     self.macroflow.current_mif = self.macroflow.next_mif
-
-        # # if not self.next_mif:
-        # #     self.macroflow.status = "completed"
 
 
     
-    def __str__(self):
-        return f"{self.id} - {self.name} - {self.status}"
+    # def __str__(self):
+    #     return f"{self.id} - {self.name} - {self.status}"
         
 
 
@@ -268,7 +282,7 @@ class MicroFlow():
         This orchestrates the MIF.
         """
 
-        sbs_logger.info("STARTED")
+        sbs_logger.info(f"STARTING a run of {self.name} (status {self.status}, llm {self.llm.vendor})")
 
         cbres = None
         if self.callback:
@@ -276,37 +290,58 @@ class MicroFlow():
 
         sbs_logger.info(f"cbres: {cbres}")
 
+        just_started = False
 
         if self.status == "pending":
+            
             sp = self.system_prompt
             if cbres:
                 sp = sp.format(cbres=cbres)
 
             sbs_logger.info(f"sp: {sp}")
 
-            self.macroflow.messages.append({ "role": "system", "content": sp })
+            if self.macroflow.messages:
+                self.macroflow.messages[0]["content"] += sp
+            # self.macroflow.messages.append({ "role": "system", "content": sp })
+            self.macroflow.messages.append({ "role": "user", "content": "hi" })
+
+            sbs_logger.info(f"Current message history: {self.macroflow.messages}")
+
             self.status = "in_progress"
             # self.macroflow.current_mif = self
             self.macroflow.just_finished_mif = False
+            just_started = True
 
 
 
+        # if there is a user message but unless we are juststarting
+        if user_message and not (just_started and self.start_with == "AI"):
+        # if user_message and not self.start_with == "AI":
 
-        if user_message and not (self.macroflow.just_finished_mif and self.start_with == "AI"):
             self.macroflow.messages.append({ "role": "user", "content": user_message })
-        
+
+            sbs_logger.info(f"Current message history: {self.macroflow.messages}")
+
             # if the completion condition is first user's answer
             if self.completion_condition["type"] == "answer":
 
-                if self.completion_condition.get("details"):
+                sbs_logger.info(f"completion_condition: {self.completion_condition}")
+                sbs_logger.info(f'self.completion_condition.get("details"): {self.completion_condition.get("details")}')
+
+                if "details" in self.completion_condition:
                     if user_message.lower() in self.completion_condition["details"].keys():
+                        sbs_logger.info(f"user_message: {user_message}, completion_condition: {self.completion_condition['details'].keys()}")
                         if self.completion_condition["details"][user_message.lower()].get("goto"):
                             next_step = self.completion_condition["details"][user_message.lower()]["goto"]
+                            sbs_logger.info(f"ENDING a run of {self.name}, going to {next_step} (status {self.status}, llm {self.llm.vendor})")
                             return self.finish(goto=next_step)
                         else:
+                            sbs_logger.info(f"ENDING a run of {self.name} (status {self.status}, llm {self.llm.vendor})")
                             return self.finish()
 
-                if len(self.next_steps)>0:
+                elif len(self.next_steps)>0:
+                    sbs_logger.info(f"! ENDING a run of {self.name}, going to {self.next_steps[0]} (status {self.status}, llm {self.llm.vendor})")
+
                     return self.finish(goto=self.next_steps[0])
 
                 
@@ -318,26 +353,42 @@ class MicroFlow():
 
             # if the completion condition requires LLM reasoning
             if self.completion_condition["type"] == "llm_reasoning":
-                
-                llm_reasoning_response = self.llm.run(messages=[{"role":"system","content":f"Here's the previous conversation with the Human (User):\n----\n{self.macroflow.messages}\n----\n\n"+self.completion_condition["details"]["system_prompt"]}],llm_params=self.completion_condition["details"]["llm_params"])
-                llm_reasoning = json.loads(llm_reasoning_response['choices'][0]['message']['content'])
-                # print(llm_reasoning)
-                self.status = llm_reasoning["status"]
-                ai_message = llm_reasoning["comment"]
+
+                attempts = 5
+
+                for i in range(attempts):
+                    sbs_logger.info(f'{i+1} attempt to get json-reasoning')
+
+                    llm_reasoning_response = self.completion_condition["details"]["llm"].create_completion(
+                        messages=[
+                            {"role":"system","content":f"Here's the previous conversation with the Human (User):\n----\n{self.macroflow.messages}\n----\n\n"+self.completion_condition["details"]["system_prompt"]},
+                            {"role": "user", "content": ""}
+                        ],
+                        llm_params=self.completion_condition["details"]["llm_params"]
+                    )
+                    try:
+                        llm_reasoning = json.loads(llm_reasoning_response['choices'][0]['message']['content'])
+                    except:
+                        sbs_logger.info(f'Attemt failed because of the invalid json output: {llm_reasoning_response["choices"][0]["message"]["content"]}')
+                        continue
+
+                    self.status = llm_reasoning["status"]
+                    ai_message = llm_reasoning["comment"]
+                    break
 
                 if self.status == "completed":
                     next_step = None
                     if len(self.next_steps)>0:
                         next_step = self.next_steps[0]
 
-                    self.finish(goto=next_step)
+                    return self.finish(goto=next_step)
                 
                 return ai_message
 
         
 
         # print(f"\n\n\n{self.macroflow.messages}\n\n\n")
-        ai_message = self.llm.run(messages=self.macroflow.messages,llm_params=self.llm_params)['choices'][0]['message']['content']
+        ai_message = self.llm.create_completion(messages=self.macroflow.messages,llm_params=self.llm_params)['choices'][0]['message']['content']
         self.macroflow.messages.append({"role":"assistant","content":ai_message})
 
         return ai_message
