@@ -1,5 +1,5 @@
 # AI Conversation Flow Library
-Current Version: 0.0.2.1. A very early version, for presentation purposes. Use at your own risk.
+Current Version: 0.0.3. A very early version, for presentation purposes. Use at your own risk.
 
 This library provides a framework for managing conversation flows with LLM's, that are composable, controllable and easily testable.
 
@@ -186,6 +186,9 @@ This library requires the openai Python package. Install it with:
 This library is a work in progress and may not handle all possible conversation flows or error conditions. It's recommended to use it as a starting point and customize it to fit your specific needs.
 
 ## Changelog
+
+### Version 0.0.3 - 2023-12-22
+- Made AIConversationFlow stateful. Now it can be integrated into apps frontends and continue conversations between sessions
 
 ### Version 0.0.2.1 - 2023-12-13
 - Added very simple functionality to use callbacks in the MicroFlow's.
