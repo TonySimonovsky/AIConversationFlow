@@ -16,11 +16,11 @@ class AIConversationFlow():
         self.__version__ = '0.0.4'
         self.logs_folder = logs_folder
 
+        # setting up logging
+
         # Check if logs_folder exists and create it if it doesn't
         if not os.path.exists(self.logs_folder):
             os.makedirs(self.logs_folder)
-
-        # setting up logging
 
         # Create a logger for step-by-step logs
         self.sbs_logger = logging.getLogger('step_by_step')
