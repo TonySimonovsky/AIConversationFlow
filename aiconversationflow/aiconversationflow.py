@@ -70,31 +70,32 @@ class MacroFlow(AIConversationFlow):
 
     """
 
-    def __init__(self, system_prompt:str=None, state:dict=None):
+    def __init__(self, system_prompt:str=None):
 
         super().__init__()
 
-        if not state:
-            self.system_prompt = system_prompt
-            self.messages = [{ "role": "system", "content": self.system_prompt }]
-            self.status = "pending"
-            self.just_finished_mif = False
-            # current step
-            self.cur_step = None
-            # stack of MIF's, that defines their order
-            self.steps = []
-            # library of MIF's, to copy from
-            self.miflib = {}
+        self.system_prompt = system_prompt
+        self.messages = [{ "role": "system", "content": self.system_prompt }]
+        self.maf_status = "pending"
+        self.just_finished_mif = False
+        # current step
+        self.cur_step = None
+        # stack of MIF's, that defines their order
+        self.steps = []
+        # library of MIF's, to copy from
+        self.miflib = {}
 
-        else:
-            self.system_prompt = state["system_prompt"]
-            self.messages = state["messages"]
-            self.status = state["status"]
-            self.just_finished_mif = state["just_finished_mif"]
-            # current step
-            self.cur_step = state["cur_step"]
-            # in serialized version, we are storing just the names of the mif's, so we need to convert from strings to the actual objects
-            self.steps = [ self.miflib[step] for step in state["steps"] ]
+
+
+    def init_from_state(self, state:dict):
+        self.system_prompt = state["system_prompt"]
+        self.messages = state["messages"]
+        self.maf_status = state["status"]
+        self.just_finished_mif = state["just_finished_mif"]
+        # current step
+        self.cur_step = state["cur_step"]
+        # in serialized version, we are storing just the names of the mif's, so we need to convert from strings to the actual objects
+        self.steps = [ self.miflib[step] for step in state["steps"] ]
 
 
 
@@ -119,7 +120,7 @@ class MacroFlow(AIConversationFlow):
         """
 
         return f"""\n\n
-            MacroFlow Status: {self.status}\n
+            MacroFlow Status: {self.maf_status}\n
             Steps: {self.steps}\n
             Previous Microflow: {self.prev_mif()}\n
             Current: {self.cur_mif()}
@@ -158,18 +159,23 @@ class MacroFlow(AIConversationFlow):
 
     def run(self, user_message=None, state=None):
         """
-        Method to run MAF, which orchestrates MIF's.
+        Method to run MAF, which orchestrates mif's.
         """
 
         if state:
-            self.log("info", self, f"Loading previous state")
-            self.__init__(state=state)
+            self.log("info", self, f"Loading previous state...")
+
+            try:
+                self.init_from_state(state=state)
+                self.log("info", self, f"State loaded: {state}")
+            except Exception as e:
+                self.log("error", self, f"Couldn't load previous state: {e}")
 
         self.log("info", self, f"STARTED MAF run with user message '{user_message}'")
 
-        if self.status == "pending":
+        if self.maf_status == "pending":
             self.log("info", self, f"This is the initiation of the MAF")
-            self.status = "in_progress"
+            self.maf_status = "in_progress"
         
 
 
@@ -178,9 +184,9 @@ class MacroFlow(AIConversationFlow):
 
 
         # if this was the last mif in the maf, so we are finishing the maf
-        if current_microflow.status == "completed":
+        if current_microflow.mif_status == "completed":
             ai_message = "Flow completed"
-            self.status = "completed"
+            self.maf_status = "completed"
 
             self.log("info", self, f"""Last mif and MAF completed""")
 
@@ -203,17 +209,17 @@ class MicroFlow(AIConversationFlow):
 
     """
 
-    Short: MIF
+    Short: mif
 
     """
 
     
-    def __init__(self, name, llm, llm_params, system_prompt, start_with, completion_condition, next_steps, goodbye_message=None, callback=None, macroflow=None):
+    def __init__(self, name, llm, llm_params, system_prompt, start_with, completion_condition, next_steps, ai_message:str=None, data_to_collect:list=[], goodbye_message=None, callback=None, macroflow=None):
         super().__init__()
         
         self.id = time.time()
         self.name = name
-        self.status = "pending"
+        self.mif_status = "pending"
         self.start_with = start_with
         self.macroflow = macroflow
         self.system_prompt = system_prompt
@@ -224,8 +230,10 @@ class MicroFlow(AIConversationFlow):
         self.llm = llm
         self.llm_params = llm_params
         self.goto = None
-        self.data = {}
-
+        self.ai_message = ai_message
+        self.data = {
+            "data_to_collect": data_to_collect
+        }
 
 
 
@@ -262,14 +270,14 @@ class MicroFlow(AIConversationFlow):
 
     def finish(self, goto=None):
 
-        self.log("info", self, f"""START (mif {self.name}, status {self.status})""")
+        self.log("info", self, f"""START (mif {self.name}, status {self.mif_status})""")
 
-        self.status = "completed"
+        self.mif_status = "completed"
         self.macroflow.just_finished_mif = True
 
         # finalizing the flow
         if not goto:
-            self.macroflow.status = "completed"
+            self.macroflow.maf_status = "completed"
 
         # going to the next step
         else:
@@ -286,7 +294,7 @@ class MicroFlow(AIConversationFlow):
         This orchestrates the MIF.
         """
 
-        self.log("info", self, f"STARTING a run of {self.name} (status {self.status}, llm {self.llm.vendor})")
+        self.log("info", self, f"STARTING a run of {self.name} (status {self.mif_status}, llm {self.llm.vendor})")
         self.log("info", self, f"INPUT: user_message: {user_message}")
 
         ai_message = None
@@ -299,13 +307,22 @@ class MicroFlow(AIConversationFlow):
 
         just_started = False
 
-        if self.status == "pending":
+        if self.mif_status == "pending":
 
             self.log("info", self, f"Initiating the mif {self.name}")
 
             sp = self.system_prompt
             if cbres:
                 sp = sp.format(cbres=cbres)
+            
+            self.log("info", self, f"TMP data: {self.data}")
+            self.log("info", self, f"TMP sp before adding data: {sp}")
+
+            # if there are any data variables in the prompt, include their values
+            sp = sp.format(**self.data)
+
+            self.log("info", self, f"TMP sp after adding data: {sp}")
+            
 
             if self.macroflow.messages:
                 self.macroflow.messages[0]["content"] = self.macroflow.system_prompt + sp
@@ -314,14 +331,15 @@ class MicroFlow(AIConversationFlow):
                 self.macroflow.messages.append({ "role": "user", "content": "[ignore this message and continue following your instructions]" })
 
 
-            self.status = "in_progress"
+            self.mif_status = "in_progress"
             self.macroflow.just_finished_mif = False
             just_started = True
 
 
+        self.log("info", self, f"""user_message: {user_message}, just_started: {just_started}, self.start_with: {self.start_with}""")
 
         # if there is a user message but unless we are just starting
-        if user_message and not (just_started and self.start_with == "AI"):
+        if user_message and not (just_started and "AI" not in self.start_with):
 
             self.macroflow.messages.append({ "role": "user", "content": user_message })
 
@@ -336,14 +354,14 @@ class MicroFlow(AIConversationFlow):
                         self.sbs_logger.info(f"user_message: {user_message}, completion_condition: {self.completion_condition['details'].keys()}")
                         if self.completion_condition["details"][user_message.lower()].get("goto"):
                             next_step = self.completion_condition["details"][user_message.lower()]["goto"]
-                            self.sbs_logger.info(f"ENDING a run of {self.name}, going to {next_step} (status {self.status}, llm {self.llm.vendor})")
+                            self.sbs_logger.info(f"ENDING a run of {self.name}, going to {next_step} (status {self.mif_status}, llm {self.llm.vendor})")
                             return self.finish(goto=next_step)
                         else:
-                            self.sbs_logger.info(f"ENDING a run of {self.name} (status {self.status}, llm {self.llm.vendor})")
+                            self.sbs_logger.info(f"ENDING a run of {self.name} (status {self.mif_status}, llm {self.llm.vendor})")
                             return self.finish()
 
                 elif len(self.next_steps)>0:
-                    self.sbs_logger.info(f"! ENDING a run of {self.name}, going to {self.next_steps[0]} (status {self.status}, llm {self.llm.vendor})")
+                    self.sbs_logger.info(f"! ENDING a run of {self.name}, going to {self.next_steps[0]} (status {self.mif_status}, llm {self.llm.vendor})")
 
                     return self.finish(goto=self.next_steps[0])
 
@@ -371,11 +389,11 @@ class MicroFlow(AIConversationFlow):
                         self.log("error", self, f"""Attempt failed because of the invalid json output: {llm_reasoning_response["choices"][0]["message"]["content"]}""")
                         continue
 
-                    self.status = llm_reasoning["status"]
+                    self.mif_status = llm_reasoning["status"]
                     ai_message = llm_reasoning["comment"]
                     break
 
-                if self.status == "completed":
+                if self.mif_status == "completed":
                     next_step = None
                     if len(self.next_steps)>0:
                         next_step = self.next_steps[0]
@@ -383,9 +401,13 @@ class MicroFlow(AIConversationFlow):
                     return self.finish(goto=next_step)
 
 
-        self.log("info", self, f"RETURNING ai_message: {ai_message}")
+        # just started the mif and the first message is predefined AI message
+        if just_started and self.ai_message:
+            ai_message = self.ai_message
 
-        ai_message = self.llm.create_completion(messages=self.macroflow.messages,llm_params=self.llm_params)['choices'][0]['message']['content']
+        else:
+            ai_message = self.llm.create_completion(messages=self.macroflow.messages,llm_params=self.llm_params)['choices'][0]['message']['content']
+
         self.macroflow.messages.append({"role":"assistant","content":ai_message})
 
         self.log("info", self, f"RETURNING ai_message: {ai_message}")
