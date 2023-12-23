@@ -1,7 +1,0 @@
-Metadata-Version: 2.1
-Name: aiconversationflow
-Version: 0.0.4
-Summary: AI Conversation Flow provides a framework for managing complex non-linear LLM conversation flows, that are composable, controllable and easily testable.
-Home-page: https://aicha.mp
-Author: Tony AI Champ
-Author-email: tony@aicha.mp

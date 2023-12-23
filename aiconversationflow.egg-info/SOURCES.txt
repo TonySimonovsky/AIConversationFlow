@@ -1,9 +1,0 @@
-README.md
-setup.py
-aiconversationflow/__init__.py
-aiconversationflow/aiconversationflow.py
-aiconversationflow.egg-info/PKG-INFO
-aiconversationflow.egg-info/SOURCES.txt
-aiconversationflow.egg-info/dependency_links.txt
-aiconversationflow.egg-info/requires.txt
-aiconversationflow.egg-info/top_level.txt
