@@ -167,7 +167,7 @@ As you can see, the first MicroFlow only required me to answer, while the second
 
 ## Installation
 
-```pip install git+https://github.com/TonySimonovsky/aichamptools.git```
+```pip install git+https://github.com/TonySimonovsky/aiconversationflow.git```
 
 ## Video Demo's
 
