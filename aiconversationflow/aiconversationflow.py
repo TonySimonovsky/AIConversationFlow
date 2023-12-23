@@ -2,57 +2,67 @@ import json
 import copy
 import time
 import os
-
-
-
 import inspect
 import logging
 
-# Create a logger for step-by-step logs
-sbs_logger = logging.getLogger('step_by_step')
-sbs_logger.setLevel(logging.INFO)  # Or whatever level you want
-
-# Remove all handlers associated with the logger object.
-for handler in sbs_logger.handlers[:]:
-    sbs_logger.removeHandler(handler)
-
-# Create a file handler
-sbs_handler = logging.FileHandler(f'logs/step_by_step.log')
-sbs_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-sbs_logger.addHandler(sbs_handler)
-
-def log(level, class_instance, message, user_id=None):
-    current_frame = inspect.currentframe()
-    frame_info = inspect.getframeinfo(current_frame.f_back)
-    
-    file_name = os.path.basename(frame_info.filename)  # Get only the base filename, not the full path
-    line_number = frame_info.lineno
-    class_name = class_instance.__class__.__name__
-    func_name = current_frame.f_back.f_code.co_name
-
-    # Check if the logging level is valid
-    if level not in ['debug', 'info', 'warning', 'error', 'critical']:
-        level = 'info'
-
-    log_func = getattr(sbs_logger, level)
-    log_message = f'{file_name}:{line_number} - {class_name} - {func_name} - {message}'
-
-    # Add user ID to the log message if it's provided
-    if user_id is not None:
-        log_message += f' - user {user_id}'
-
-    log_func(log_message)
 
 
 
 
-__version__ = '0.0.4'
+class AIConversationFlow():
+
+
+    def __init__(self, logs_folder="aiconversationflow_logs/"):
+        self.__version__ = '0.0.4'
+        self.logs_folder = logs_folder
+
+        # Check if logs_folder exists and create it if it doesn't
+        if not os.path.exists(self.logs_folder):
+            os.makedirs(self.logs_folder)
+
+        # setting up logging
+
+        # Create a logger for step-by-step logs
+        self.sbs_logger = logging.getLogger('step_by_step')
+        self.sbs_logger.setLevel(logging.INFO)  # Or whatever level you want
+
+        # Remove all handlers associated with the logger object.
+        for handler in self.sbs_logger.handlers[:]:
+            self.sbs_logger.removeHandler(handler)
+
+        # Create a file handler
+        sbs_handler = logging.FileHandler(f'{self.logs_folder}step_by_step.log')
+        sbs_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        self.sbs_logger.addHandler(sbs_handler)
+
+
+    def log(self, level, class_instance, message, user_id=None):
+        current_frame = inspect.currentframe()
+        frame_info = inspect.getframeinfo(current_frame.f_back)
+        
+        file_name = os.path.basename(frame_info.filename)  # Get only the base filename, not the full path
+        line_number = frame_info.lineno
+        class_name = class_instance.__class__.__name__
+        func_name = current_frame.f_back.f_code.co_name
+
+        # Check if the logging level is valid
+        if level not in ['debug', 'info', 'warning', 'error', 'critical']:
+            level = 'info'
+
+        log_func = getattr(self.sbs_logger, level)
+        log_message = f'{file_name}:{line_number} - {class_name} - {func_name} - {message}'
+
+        # Add user ID to the log message if it's provided
+        if user_id is not None:
+            log_message += f' - user {user_id}'
+
+        log_func(log_message)
 
 
 
 
 
-class MacroFlow():
+class MacroFlow(AIConversationFlow):
 
     """
 
@@ -61,6 +71,8 @@ class MacroFlow():
     """
 
     def __init__(self, system_prompt:str=None, state:dict=None):
+
+        super().__init__()
 
         if not state:
             self.system_prompt = system_prompt
@@ -150,19 +162,19 @@ class MacroFlow():
         """
 
         if state:
-            log("info", self, f"Loading previous state")
+            self.log("info", self, f"Loading previous state")
             self.__init__(state=state)
 
-        log("info", self, f"STARTED MAF run with user message '{user_message}'")
+        self.log("info", self, f"STARTED MAF run with user message '{user_message}'")
 
         if self.status == "pending":
-            log("info", self, f"This is the initiation of the MAF")
+            self.log("info", self, f"This is the initiation of the MAF")
             self.status = "in_progress"
         
 
 
         current_microflow = self.steps[-1]
-        log("info", self, f"current_microflow: {current_microflow}")
+        self.log("info", self, f"current_microflow: {current_microflow}")
 
 
         # if this was the last mif in the maf, so we are finishing the maf
@@ -170,7 +182,7 @@ class MacroFlow():
             ai_message = "Flow completed"
             self.status = "completed"
 
-            log("info", self, f"""Last mif and MAF completed""")
+            self.log("info", self, f"""Last mif and MAF completed""")
 
 
         else:
@@ -181,13 +193,13 @@ class MacroFlow():
                 ai_message = None
 
 
-        log("info", self, f"""RETURNING ai_message: {ai_message}""")
+        self.log("info", self, f"""RETURNING ai_message: {ai_message}""")
 
         return ai_message
 
 
 
-class MicroFlow():
+class MicroFlow(AIConversationFlow):
 
     """
 
@@ -197,6 +209,8 @@ class MicroFlow():
 
     
     def __init__(self, name, llm, llm_params, system_prompt, start_with, completion_condition, next_steps, goodbye_message=None, callback=None, macroflow=None):
+        super().__init__()
+        
         self.id = time.time()
         self.name = name
         self.status = "pending"
@@ -248,7 +262,7 @@ class MicroFlow():
 
     def finish(self, goto=None):
 
-        log("info", self, f"""START (mif {self.name}, status {self.status})""")
+        self.log("info", self, f"""START (mif {self.name}, status {self.status})""")
 
         self.status = "completed"
         self.macroflow.just_finished_mif = True
@@ -272,22 +286,22 @@ class MicroFlow():
         This orchestrates the MIF.
         """
 
-        log("info", self, f"STARTING a run of {self.name} (status {self.status}, llm {self.llm.vendor})")
-        log("info", self, f"INPUT: user_message: {user_message}")
+        self.log("info", self, f"STARTING a run of {self.name} (status {self.status}, llm {self.llm.vendor})")
+        self.log("info", self, f"INPUT: user_message: {user_message}")
 
         ai_message = None
 
         cbres = None
         if self.callback:
             cbres = self.callback()
-            log("info", self, f"cbres: {cbres}")
+            self.log("info", self, f"cbres: {cbres}")
 
 
         just_started = False
 
         if self.status == "pending":
 
-            log("info", self, f"Initiating the mif {self.name}")
+            self.log("info", self, f"Initiating the mif {self.name}")
 
             sp = self.system_prompt
             if cbres:
@@ -314,22 +328,22 @@ class MicroFlow():
             # if the completion condition is first user's answer
             if self.completion_condition["type"] == "answer":
 
-                sbs_logger.info(f"completion_condition: {self.completion_condition}")
-                sbs_logger.info(f'self.completion_condition.get("details"): {self.completion_condition.get("details")}')
+                self.sbs_logger.info(f"completion_condition: {self.completion_condition}")
+                self.sbs_logger.info(f'self.completion_condition.get("details"): {self.completion_condition.get("details")}')
 
                 if "details" in self.completion_condition:
                     if user_message.lower() in self.completion_condition["details"].keys():
-                        sbs_logger.info(f"user_message: {user_message}, completion_condition: {self.completion_condition['details'].keys()}")
+                        self.sbs_logger.info(f"user_message: {user_message}, completion_condition: {self.completion_condition['details'].keys()}")
                         if self.completion_condition["details"][user_message.lower()].get("goto"):
                             next_step = self.completion_condition["details"][user_message.lower()]["goto"]
-                            sbs_logger.info(f"ENDING a run of {self.name}, going to {next_step} (status {self.status}, llm {self.llm.vendor})")
+                            self.sbs_logger.info(f"ENDING a run of {self.name}, going to {next_step} (status {self.status}, llm {self.llm.vendor})")
                             return self.finish(goto=next_step)
                         else:
-                            sbs_logger.info(f"ENDING a run of {self.name} (status {self.status}, llm {self.llm.vendor})")
+                            self.sbs_logger.info(f"ENDING a run of {self.name} (status {self.status}, llm {self.llm.vendor})")
                             return self.finish()
 
                 elif len(self.next_steps)>0:
-                    sbs_logger.info(f"! ENDING a run of {self.name}, going to {self.next_steps[0]} (status {self.status}, llm {self.llm.vendor})")
+                    self.sbs_logger.info(f"! ENDING a run of {self.name}, going to {self.next_steps[0]} (status {self.status}, llm {self.llm.vendor})")
 
                     return self.finish(goto=self.next_steps[0])
 
@@ -342,7 +356,7 @@ class MicroFlow():
                 attempts = 5
 
                 for i in range(attempts):
-                    log("info", self, f'{i+1} attempt to get json-reasoning')
+                    self.log("info", self, f'{i+1} attempt to get json-reasoning')
 
                     llm_reasoning_response = self.completion_condition["details"]["llm"].create_completion(
                         messages=[
@@ -352,9 +366,9 @@ class MicroFlow():
                     )
                     try:
                         llm_reasoning = json.loads(llm_reasoning_response['choices'][0]['message']['content'])
-                        log("info", self, f'Reasoning received: {llm_reasoning}')
+                        self.log("info", self, f'Reasoning received: {llm_reasoning}')
                     except:
-                        log("error", self, f"""Attempt failed because of the invalid json output: {llm_reasoning_response["choices"][0]["message"]["content"]}""")
+                        self.log("error", self, f"""Attempt failed because of the invalid json output: {llm_reasoning_response["choices"][0]["message"]["content"]}""")
                         continue
 
                     self.status = llm_reasoning["status"]
@@ -369,12 +383,12 @@ class MicroFlow():
                     return self.finish(goto=next_step)
 
 
-        log("info", self, f"RETURNING ai_message: {ai_message}")
+        self.log("info", self, f"RETURNING ai_message: {ai_message}")
 
         ai_message = self.llm.create_completion(messages=self.macroflow.messages,llm_params=self.llm_params)['choices'][0]['message']['content']
         self.macroflow.messages.append({"role":"assistant","content":ai_message})
 
-        log("info", self, f"RETURNING ai_message: {ai_message}")
+        self.log("info", self, f"RETURNING ai_message: {ai_message}")
 
         return ai_message
 
