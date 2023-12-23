@@ -1,5 +1,5 @@
 # AI Conversation Flow Library
-Current Version: 0.0.3. A very early version, for presentation purposes. Use at your own risk.
+Current Version: 0.0.4. A very early version, for presentation purposes. Use at your own risk.
 
 This library provides a framework for managing conversation flows with LLM's, that are composable, controllable and easily testable.
 
@@ -29,10 +29,6 @@ The `MicroFlow` class supports two types of completion conditions:
 1. **Answer**: The MicroFlow is marked as completed when the user provides an answer. This is specified with `completion_condition={"type":"answer"}`.
 
 2. **LLM Reasoning**: The MicroFlow uses another instance of LLM to determine whether it's completed. This is specified with `completion_condition={"type":"llm_reasoning", "details": {...}}`. The `details` dictionary should include a `system_prompt` for the LLM and `llm_params` specifying the parameters for the LLM call.
-
-### LLM
-
-This class is a wrapper for the OpenAI API. It provides a method `run` to send a list of messages to the API and receive a response.
 
 ## Usage
 
@@ -169,23 +165,24 @@ And here's an example of a conversation using the flow above:
 
 As you can see, the first MicroFlow only required me to answer, while the second one didn't finish before it collected 3 hobbies from me.
 
+## Installation
+
+```pip install git+https://github.com/TonySimonovsky/aichamptools.git```
+
 ## Video Demo's
 
 The Very First Demo: https://www.loom.com/share/60e0a2f4d6fc47a792f7ec633ad1f8ea
 
 Grumpy CTO quest game: https://www.loom.com/share/5476267a38c4457a873c0e21ded1e709
 
-## Requirements
-
-This library requires the openai Python package. Install it with:
-
-```pip install openai```
-
 ## Note
 
 This library is a work in progress and may not handle all possible conversation flows or error conditions. It's recommended to use it as a starting point and customize it to fit your specific needs.
 
 ## Changelog
+
+### Version 0.0.4 - 2023-12-23
+- Now aiconversationflow is a proper python module, that can be installed using pip
 
 ### Version 0.0.3 - 2023-12-22
 - Made AIConversationFlow stateful. Now it can be integrated into apps frontends and continue conversations between sessions
