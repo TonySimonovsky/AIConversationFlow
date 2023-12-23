@@ -1,7 +1,5 @@
-from openai import OpenAI, APITimeoutError
 import json
 import copy
-import threading
 import time
 import os
 
@@ -47,7 +45,8 @@ def log(level, class_instance, message, user_id=None):
 
 
 
-__version__ = '0.0.3'
+
+__version__ = '0.0.4'
 
 
 
