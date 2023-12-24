@@ -258,7 +258,10 @@ class MicroFlow(AIConversationFlow):
                     # Create a copy of the value dictionary
                     value_copy = value.copy()
                     # Update the 'llm' field in the 'details' dictionary
-                    value_copy['details']['llm'] = value_copy['details']['llm'].vendor  # replace with the updated value
+                    new_obj.llm = type(self.llm)()
+
+                    llm = value_copy['details']['llm']
+                    value_copy['details']['llm'] = type(llm)(api_key=llm.api_key)  # replace with the updated value
                     # Set the attribute to the updated copy
                     setattr(new_obj, name, value_copy)
             elif name != 'llm':
@@ -272,7 +275,7 @@ class MicroFlow(AIConversationFlow):
                     print(f"""TMP Value: {value}""")
                     print(f"""TMP Value type: {type(value)}""")
 
-        new_obj.llm = type(self.llm)()
+        new_obj.llm = type(self.llm)(api_key=self.llm.api_key)
 
         return new_obj
 
