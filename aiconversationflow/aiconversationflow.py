@@ -253,7 +253,15 @@ class MicroFlow(AIConversationFlow):
 
         # Copy all non-OpenAI attributes
         for name, value in self.__dict__.items():
-            if name != 'llm':
+            if name == 'completion_condition':
+                if value.get('details') and value['details'].get('llm'):
+                    # Create a copy of the value dictionary
+                    value_copy = value.copy()
+                    # Update the 'llm' field in the 'details' dictionary
+                    value_copy['details']['llm'] = value_copy['details']['llm'].vendor  # replace with the updated value
+                    # Set the attribute to the updated copy
+                    setattr(new_obj, name, value_copy)
+            elif name != 'llm':
                 try:
                     setattr(new_obj, name, copy.deepcopy(value, memo))
                 except Exception as e:
@@ -264,8 +272,7 @@ class MicroFlow(AIConversationFlow):
                     print(f"""TMP Value: {value}""")
                     print(f"""TMP Value type: {type(value)}""")
 
-        # Create a 
-        new_obj.llm = type(self.llm)()  
+        new_obj.llm = type(self.llm)()
 
         return new_obj
 
