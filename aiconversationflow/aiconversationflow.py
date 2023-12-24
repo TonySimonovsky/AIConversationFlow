@@ -80,7 +80,7 @@ class MacroFlow(AIConversationFlow):
 
         super().__init__(log_on=log_on)
 
-        print(f"TMP log_on: {log_on}, self.log_on: {self.log_on}")
+        # print(f"TMP log_on: {log_on}, self.log_on: {self.log_on}")
 
         self.system_prompt = system_prompt
         self.messages = [{ "role": "system", "content": self.system_prompt }]
@@ -226,8 +226,8 @@ class MicroFlow(AIConversationFlow):
         
         super().__init__(log_on=macroflow.log_on)
         
-        print(f"TMP macroflow.log_on: {macroflow.log_on}")
-        print(f"TMP self.log_on: {self.log_on}")
+        # print(f"TMP macroflow.log_on: {macroflow.log_on}")
+        # print(f"TMP self.log_on: {self.log_on}")
 
         self.id = time.time()
         self.name = name
@@ -280,9 +280,9 @@ class MicroFlow(AIConversationFlow):
                     self.log("error", self, f"""Couldn't copy {name}, error: {e}""")
                     self.log("error", self, f"""Value: {value}""")
                     self.log("error", self, f"""Value type: {type(value)}""")
-                    print(f"""TMP Couldn't copy {name}, error: {e}""")
-                    print(f"""TMP Value: {value}""")
-                    print(f"""TMP Value type: {type(value)}""")
+                    # print(f"""TMP Couldn't copy {name}, error: {e}""")
+                    # print(f"""TMP Value: {value}""")
+                    # print(f"""TMP Value type: {type(value)}""")
 
         new_obj.llm = type(self.llm)(api_key=self.llm.api_key,log_on=self.log_on)
 
@@ -342,13 +342,13 @@ class MicroFlow(AIConversationFlow):
             if cbres:
                 sp = sp.format(cbres=cbres)
             
-            self.log("info", self, f"TMP data: {self.data}")
-            self.log("info", self, f"TMP sp before adding data: {sp}")
+            # self.log("info", self, f"TMP data: {self.data}")
+            # self.log("info", self, f"TMP sp before adding data: {sp}")
 
             # if there are any data variables in the prompt, include their values
             sp = sp.format(**self.data)
 
-            self.log("info", self, f"TMP sp after adding data: {sp}")
+            # self.log("info", self, f"TMP sp after adding data: {sp}")
             
 
             if self.macroflow.messages:
