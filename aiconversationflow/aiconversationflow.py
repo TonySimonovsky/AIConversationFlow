@@ -12,10 +12,10 @@ import logging
 class AIConversationFlow():
 
 
-    def __init__(self, logs_folder="aiconversationflow_logs/"):
+    def __init__(self, logs_folder="aiconversationflow_logs/", log_on=True):
         self.__version__ = '0.0.4'
         self.logs_folder = logs_folder
-        self.log_on = True
+        self.log_on = log_on
 
         # setting up logging
 
@@ -38,6 +38,8 @@ class AIConversationFlow():
 
 
     def log(self, level, class_instance, message, user_id=None):
+
+        # print(f"""TMP inside log method: self.log_on: {self.log_on}""")
 
         if self.log_on:
             current_frame = inspect.currentframe()
@@ -74,9 +76,11 @@ class MacroFlow(AIConversationFlow):
 
     """
 
-    def __init__(self, system_prompt:str=None):
+    def __init__(self, system_prompt:str=None, log_on=True):
 
-        super().__init__()
+        super().__init__(log_on=log_on)
+
+        print(f"TMP log_on: {log_on}, self.log_on: {self.log_on}")
 
         self.system_prompt = system_prompt
         self.messages = [{ "role": "system", "content": self.system_prompt }]
@@ -219,8 +223,12 @@ class MicroFlow(AIConversationFlow):
 
     
     def __init__(self, name, llm, llm_params, system_prompt, start_with, completion_condition, next_steps, ai_message:str=None, data_to_collect:list=[], goodbye_message=None, callback=None, macroflow=None):
-        super().__init__()
         
+        super().__init__(log_on=macroflow.log_on)
+        
+        print(f"TMP macroflow.log_on: {macroflow.log_on}")
+        print(f"TMP self.log_on: {self.log_on}")
+
         self.id = time.time()
         self.name = name
         self.mif_status = "pending"
@@ -262,7 +270,7 @@ class MicroFlow(AIConversationFlow):
                     # Create a copy of the value dictionary
                     value_copy = value.copy()
                     llm = value_copy['details']['llm']
-                    value_copy['details']['llm'] = type(llm)(api_key=llm.api_key)  # replace with the updated value
+                    value_copy['details']['llm'] = type(llm)(api_key=llm.api_key,log_on=self.log_on)  # replace with the updated value
                     # Set the attribute to the updated copy
                     setattr(new_obj, name, value_copy)
             elif name != 'llm':
@@ -276,7 +284,7 @@ class MicroFlow(AIConversationFlow):
                     print(f"""TMP Value: {value}""")
                     print(f"""TMP Value type: {type(value)}""")
 
-        new_obj.llm = type(self.llm)(api_key=self.llm.api_key)
+        new_obj.llm = type(self.llm)(api_key=self.llm.api_key,log_on=self.log_on)
 
         return new_obj
 
@@ -365,22 +373,23 @@ class MicroFlow(AIConversationFlow):
             # if the completion condition is first user's answer
             if self.completion_condition["type"] == "answer":
 
-                self.sbs_logger.info(f"completion_condition: {self.completion_condition}")
-                self.sbs_logger.info(f'self.completion_condition.get("details"): {self.completion_condition.get("details")}')
+                self.log("info", self, f"""completion_condition: {self.completion_condition}""")
+                self.log("info", self, f"""self.completion_condition.get("details"): {self.completion_condition.get("details")}""")
+                
 
                 if "details" in self.completion_condition:
                     if user_message.lower() in self.completion_condition["details"].keys():
-                        self.sbs_logger.info(f"user_message: {user_message}, completion_condition: {self.completion_condition['details'].keys()}")
+                        self.log("info", self, f"""user_message: {user_message}, completion_condition: {self.completion_condition['details'].keys()}""")
                         if self.completion_condition["details"][user_message.lower()].get("goto"):
                             next_step = self.completion_condition["details"][user_message.lower()]["goto"]
-                            self.sbs_logger.info(f"ENDING a run of {self.name}, going to {next_step} (status {self.mif_status}, llm {self.llm.vendor})")
+                            self.log("info", self, f"""ENDING a run of {self.name}, going to {next_step} (status {self.mif_status}, llm {self.llm.vendor})""")
                             return self.finish(goto=next_step)
                         else:
-                            self.sbs_logger.info(f"ENDING a run of {self.name} (status {self.mif_status}, llm {self.llm.vendor})")
+                            self.log("info", self, f"""ENDING a run of {self.name} (status {self.mif_status}, llm {self.llm.vendor})""")
                             return self.finish()
 
                 elif len(self.next_steps)>0:
-                    self.sbs_logger.info(f"! ENDING a run of {self.name}, going to {self.next_steps[0]} (status {self.mif_status}, llm {self.llm.vendor})")
+                    self.log("info", self, f"""! ENDING a run of {self.name}, going to {self.next_steps[0]} (status {self.mif_status}, llm {self.llm.vendor})""")
 
                     return self.finish(goto=self.next_steps[0])
 
