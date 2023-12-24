@@ -257,9 +257,6 @@ class MicroFlow(AIConversationFlow):
                 if value.get('details') and value['details'].get('llm'):
                     # Create a copy of the value dictionary
                     value_copy = value.copy()
-                    # Update the 'llm' field in the 'details' dictionary
-                    new_obj.llm = type(self.llm)()
-
                     llm = value_copy['details']['llm']
                     value_copy['details']['llm'] = type(llm)(api_key=llm.api_key)  # replace with the updated value
                     # Set the attribute to the updated copy
