@@ -254,7 +254,12 @@ class MicroFlow(AIConversationFlow):
         # Copy all non-OpenAI attributes
         for name, value in self.__dict__.items():
             if name != 'llm':
-                setattr(new_obj, name, copy.deepcopy(value, memo))
+                try:
+                    setattr(new_obj, name, copy.deepcopy(value, memo))
+                except Exception as e:
+                    self.log("error", self, f"""Couldn't copy {name}, error: {e}""")
+                    self.log("error", self, f"""Value: {value}""")
+                    self.log("error", self, f"""Value type: {type(value)}""")
 
         # Create a 
         new_obj.llm = type(self.llm)()  
