@@ -15,6 +15,7 @@ class AIConversationFlow():
     def __init__(self, logs_folder="aiconversationflow_logs/"):
         self.__version__ = '0.0.4'
         self.logs_folder = logs_folder
+        self.log_on = True
 
         # setting up logging
 
@@ -37,27 +38,30 @@ class AIConversationFlow():
 
 
     def log(self, level, class_instance, message, user_id=None):
-        current_frame = inspect.currentframe()
-        frame_info = inspect.getframeinfo(current_frame.f_back)
-        
-        file_name = os.path.basename(frame_info.filename)  # Get only the base filename, not the full path
-        line_number = frame_info.lineno
-        class_name = class_instance.__class__.__name__
-        func_name = current_frame.f_back.f_code.co_name
 
-        # Check if the logging level is valid
-        if level not in ['debug', 'info', 'warning', 'error', 'critical']:
-            level = 'info'
+        if self.log_on:
+            current_frame = inspect.currentframe()
+            frame_info = inspect.getframeinfo(current_frame.f_back)
+            
+            file_name = os.path.basename(frame_info.filename)  # Get only the base filename, not the full path
+            line_number = frame_info.lineno
+            class_name = class_instance.__class__.__name__
+            func_name = current_frame.f_back.f_code.co_name
 
-        log_func = getattr(self.sbs_logger, level)
-        log_message = f'{file_name}:{line_number} - {class_name} - {func_name} - {message}'
+            # Check if the logging level is valid
+            if level not in ['debug', 'info', 'warning', 'error', 'critical']:
+                level = 'info'
 
-        # Add user ID to the log message if it's provided
-        if user_id is not None:
-            log_message += f' - user {user_id}'
+            log_func = getattr(self.sbs_logger, level)
+            log_message = f'{file_name}:{line_number} - {class_name} - {func_name} - {message}'
 
-        log_func(log_message)
+            # Add user ID to the log message if it's provided
+            if user_id is not None:
+                log_message += f' - user {user_id}'
 
+            log_func(log_message)
+        else:
+            return
 
 
 
