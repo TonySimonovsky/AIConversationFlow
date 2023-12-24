@@ -260,6 +260,9 @@ class MicroFlow(AIConversationFlow):
                     self.log("error", self, f"""Couldn't copy {name}, error: {e}""")
                     self.log("error", self, f"""Value: {value}""")
                     self.log("error", self, f"""Value type: {type(value)}""")
+                    print(f"""TMP Couldn't copy {name}, error: {e}""")
+                    print(f"""TMP Value: {value}""")
+                    print(f"""TMP Value type: {type(value)}""")
 
         # Create a 
         new_obj.llm = type(self.llm)()  
