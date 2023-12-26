@@ -68,6 +68,7 @@ class AIConversationFlow():
 
 
 
+
 class MacroFlow(AIConversationFlow):
 
     """
@@ -76,73 +77,48 @@ class MacroFlow(AIConversationFlow):
 
     """
 
+
+    # ----------------------------------------
+    # 
+    # MAF initiation and running methods
+    #
+
+
+
     def __init__(self, system_prompt:str=None, log_on=True):
 
         super().__init__(log_on=log_on)
 
-        # print(f"TMP log_on: {log_on}, self.log_on: {self.log_on}")
-
+        # initialize MAF system prompt; this prompt should serve as a basis of the bot personality
         self.system_prompt = system_prompt
+
+        # this is the storage for all of the chat history
         self.messages = [{ "role": "system", "content": self.system_prompt }]
+
+        # status of the MAF
         self.maf_status = "pending"
+
+        # indication if a mif was just completed (? needed)
         self.just_finished_mif = False
-        # current step
-        self.cur_step = None
-        # stack of MIF's, that defines their order
+
+        # # current mif name
+        # self.cur_step = None
+
+        # stack of mif's, similar to chat history, but contains the states and the data
         self.steps = []
-        # library of MIF's, to copy from
+
+        # library of preset mif objects, used as templates to create steps from
         self.miflib = {}
 
 
 
-    def init_from_state(self, state:dict):
-        self.system_prompt = state["system_prompt"]
-        self.messages = state["messages"]
-        self.maf_status = state["status"]
-        self.just_finished_mif = state["just_finished_mif"]
-        # current step
-        self.cur_step = state["cur_step"]
-        # in serialized version, we are storing just the names of the mif's, so we need to convert from strings to the actual objects
-        self.steps = [ self.miflib[step] for step in state["steps"] ]
-
-
-
-    def prev_mif(self):
-        if len(self.steps) > 2:
-            return self.steps[-2]
-        else:
-            return None
-
-
-
-    def cur_mif(self):
-        return self.steps[-1]
-
-
-
-    def __str__(self):
+    def register_mif(self, microflow:'MicroFlow'):
         """
-
-        What we show when the object is used as a string.
-        
-        """
-
-        return f"""\n\n
-            MacroFlow Status: {self.maf_status}\n
-            Steps: {self.steps}\n
-            Previous Microflow: {self.prev_mif()}\n
-            Current: {self.cur_mif()}
-            Just Finished MIF: {self.just_finished_mif}
-        \n\n"""
-    
-
-    
-    def register_microflow(self, microflow):
-        """
-        Method to add a MIF to MAF.
+        Method to add a new mif to the library of MAF. Library is then used to create new steps from.
         """
 
         microflow.macroflow = self
+
         # add to the MIF library of MAF
         self.miflib[microflow.name] = microflow
 
@@ -150,20 +126,15 @@ class MacroFlow(AIConversationFlow):
 
     def add_step(self, step):
         """
+        Method to add a mif to the steps stack. Steps stack is the history of statuses.
 
         step: name of a MicroFlow()
-
         """
         
         # add to the stack
         self.steps.append(self.miflib[step].clone())
 
 
-
-    def serialize(self):
-        return json.dumps(vars(self), default=str)
-
-    
 
     def run(self, user_message=None, state=None):
         """
@@ -174,7 +145,7 @@ class MacroFlow(AIConversationFlow):
             self.log("info", self, f"Loading previous state...")
 
             try:
-                self.init_from_state(state=state)
+                self.maf_init_from_state(state=state)
                 self.log("info", self, f"State loaded: {state}")
             except Exception as e:
                 self.log("error", self, f"Couldn't load previous state: {e}")
@@ -203,6 +174,7 @@ class MacroFlow(AIConversationFlow):
 
             ai_message = current_microflow.run(user_message)
 
+            # if we just finiashed a microflow, do not need to return any ai message
             if self.just_finished_mif:
                 ai_message = None
 
@@ -210,6 +182,93 @@ class MacroFlow(AIConversationFlow):
         self.log("info", self, f"""RETURNING ai_message: {ai_message}""")
 
         return ai_message
+
+
+
+    # ----------------------------------------
+    # 
+    # MAF navigation methods
+    #
+
+
+    def prev_step(self):
+        """
+        What is the previous step?
+        """
+        if len(self.steps) > 2:
+            return self.steps[-2]
+        else:
+            return None
+
+
+
+    def cur_step(self):
+        """
+        What is the current step?
+        """
+        return self.steps[-1]
+
+
+
+    # ----------------------------------------
+    # 
+    # Serializaion and representation methods
+    #
+
+
+
+    def _serializer(self,obj):
+        if isinstance(obj, MicroFlow):
+            return obj.mif_state_serialized()
+        return str(obj)
+
+
+
+    def maf_state_serialized(self):
+        return json.dumps({
+            "messages": self.messages,
+            "maf_status": self.maf_status,
+            "just_finished_mif": self.just_finished_mif,
+            # "cur_step": self.cur_step,
+            "steps": self.steps,
+        }, default=self._serializer)
+
+
+
+    def maf_init_from_state(self, state:dict):
+        self.system_prompt = state["system_prompt"]
+        self.messages = state["messages"]
+        self.maf_status = state["status"]
+        self.just_finished_mif = state["just_finished_mif"]
+        # # current step
+        # self.cur_step = state["cur_step"]
+
+        self.steps = []# self.miflib[step] for step in state["steps"] ]
+        for step in state["steps"]:
+            self.steps.append(self.miflib[step["name"]].clone(step))
+
+
+
+    def __str__(self):
+        """
+
+        What we show when the object is used as a string.
+        
+        """
+
+        return f"""\n\n
+            MacroFlow Status: {self.maf_status}\n
+            Steps: {self.steps}\n
+            Previous Microflow: {self.prev_step()}\n
+            Current: {self.cur_step()}
+            Just Finished MIF: {self.just_finished_mif}
+        \n\n"""
+    
+
+    # def serialize(self):
+    #     return json.dumps(vars(self), default=str)
+
+    
 
 
 
@@ -221,100 +280,70 @@ class MicroFlow(AIConversationFlow):
 
     """
 
-    
-    def __init__(self, name, llm, llm_params, system_prompt, start_with, completion_condition, next_steps, ai_message:str=None, data_to_collect:list=[], goodbye_message=None, callback=None, macroflow=None):
+
+
+    # ----------------------------------------
+    # 
+    # mif initiation and running methods
+    #
+
+
+
+    def __init__(self,
+                 name:str,
+                 llm,
+                 llm_params:dict,
+                 system_prompt:str,
+                 start_with:str,
+                 completion_condition:dict,
+                 next_steps:list,
+                 ai_message:str=None,
+                 data_to_collect:list=[],
+                 goodbye_message=None,
+                 callback=None,
+                 macroflow:MacroFlow=None):
         
         super().__init__(log_on=macroflow.log_on)
         
-        # print(f"TMP macroflow.log_on: {macroflow.log_on}")
-        # print(f"TMP self.log_on: {self.log_on}")
-
         self.id = time.time()
         self.name = name
         self.mif_status = "pending"
+
+        # indication of who starts the mif: "user" or "AI"
         self.start_with = start_with
+
+        # link to the parent MAF
         self.macroflow = macroflow
+
+        # system prompt of this mif; here you store the instructions of the current step of the dialogue
         self.system_prompt = system_prompt
+
+        # this sets the conditions to complete the prompt and also collects the data from the user;
+        #   for now, we have 2 types of completion conditions: "answer" and "llm_reasoning"
         self.completion_condition = completion_condition
+
+        # (potentially to remove and use reasoning as a router) indicate possible steps we go to after completing the current one
         self.next_steps = next_steps
+
+        # message we send in the end of the mif (if required by settings)
         self.goodbye_message = goodbye_message
+
         self.callback = callback
+
+        # LLM we use for this mif
         self.llm = llm
+        # LLM settings
         self.llm_params = llm_params
-        self.goto = None
+
+        # self.goto = None
+
         self.ai_message = ai_message
+
         self.data = {
             "data_to_collect": data_to_collect
         }
 
 
-
-    def clone(self):
-        cloned = copy.deepcopy(self)
-        cloned.id = time.time()
-        cloned.macroflow = self.macroflow
-        return cloned
-
-
-
-    def __deepcopy__(self, memo):
-        # Create a new instance of the class including required params
-        init_arg_names = inspect.getfullargspec(self.__init__).args[1:]  # Exclude 'self'
-        new_obj = type(self)(**{k: v for k, v in vars(self).items() if k in init_arg_names})
-        memo[id(self)] = new_obj
-
-        # Copy all non-OpenAI attributes
-        for name, value in self.__dict__.items():
-            if name == 'completion_condition':
-                if value.get('details') and value['details'].get('llm'):
-                    # Create a copy of the value dictionary
-                    value_copy = value.copy()
-                    llm = value_copy['details']['llm']
-                    value_copy['details']['llm'] = type(llm)(api_key=llm.api_key,log_on=self.log_on)  # replace with the updated value
-                    # Set the attribute to the updated copy
-                    setattr(new_obj, name, value_copy)
-            elif name != 'llm':
-                try:
-                    setattr(new_obj, name, copy.deepcopy(value, memo))
-                except Exception as e:
-                    self.log("error", self, f"""Couldn't copy {name}, error: {e}""")
-                    self.log("error", self, f"""Value: {value}""")
-                    self.log("error", self, f"""Value type: {type(value)}""")
-                    # print(f"""TMP Couldn't copy {name}, error: {e}""")
-                    # print(f"""TMP Value: {value}""")
-                    # print(f"""TMP Value type: {type(value)}""")
-
-        new_obj.llm = type(self.llm)(api_key=self.llm.api_key,log_on=self.log_on)
-
-        return new_obj
-
-
-
-    def __str__(self):
-        return self.name
-
-
-
-    def finish(self, goto=None):
-
-        self.log("info", self, f"""START (mif {self.name}, status {self.mif_status})""")
-
-        self.mif_status = "completed"
-        self.macroflow.just_finished_mif = True
-
-        # finalizing the flow
-        if not goto:
-            self.macroflow.maf_status = "completed"
-
-        # going to the next step
-        else:
-            self.macroflow.add_step(goto)
-        
-        return self.goodbye_message
-
-
-
-    
 
     def run(self, user_message=None):
         """
@@ -404,9 +433,11 @@ class MicroFlow(AIConversationFlow):
                 for i in range(attempts):
                     self.log("info", self, f'{i+1} attempt to get json-reasoning')
 
+                    newline = "\n"
+                    chat_history_for_reasoning = newline.join([ f"{m['role']}: {m['content']}" for m in self.macroflow.messages ])
                     llm_reasoning_response = self.completion_condition["details"]["llm"].create_completion(
                         messages=[
-                            {"role":"system","content":f"Here's the previous conversation with the Human (User):\n----\n{self.macroflow.messages}\n----\n\n"+self.completion_condition["details"]["system_prompt"]},
+                            {"role":"system","content":f"Here's the previous conversation with the Human (User):\n----\n{chat_history_for_reasoning}\n----\n\n"+self.completion_condition["details"]["system_prompt"]},
                         ],
                         llm_params=self.completion_condition["details"]["llm_params"]
                     )
@@ -419,6 +450,14 @@ class MicroFlow(AIConversationFlow):
 
                     self.mif_status = llm_reasoning["status"]
                     ai_message = llm_reasoning["comment"]
+
+                    # saving data collected in the session datastore
+                    for k,v in llm_reasoning.items():
+                        if k in ("reasoning","status","comment"):
+                            continue
+                        if k not in self.data["data_to_collect"]:
+                            self.data["data_to_collect"] = { "details": "", "data": "" }
+                        self.data["data_to_collect"][k]["data"] = v
                     break
 
                 if self.mif_status == "completed":
@@ -441,4 +480,102 @@ class MicroFlow(AIConversationFlow):
         self.log("info", self, f"RETURNING ai_message: {ai_message}")
 
         return ai_message
+
+
+
+    def finish(self, goto=None):
+
+        self.log("info", self, f"""START (mif {self.name}, status {self.mif_status})""")
+
+        self.mif_status = "completed"
+        self.macroflow.just_finished_mif = True
+
+        # finalizing the flow
+        if not goto:
+            self.macroflow.maf_status = "completed"
+
+        # going to the next step
+        else:
+            self.macroflow.add_step(goto)
+        
+        return self.goodbye_message
+
+    
+
+    # ----------------------------------------
+    # 
+    # mif initiation and running methods
+    #
+
+
+
+    def clone(self, state:dict=None):
+        cloned = copy.deepcopy(self)
+        cloned.id = time.time()
+        cloned.macroflow = self.macroflow
+
+        if state:
+            cloned.id = state["id"],
+            cloned.name = state["name"],
+            cloned.mif_status = state["mif_status"],
+            cloned.data = state["data"],
+
+        return cloned
+
+
+
+    def __deepcopy__(self, memo):
+        # Create a new instance of the class including required params
+        init_arg_names = inspect.getfullargspec(self.__init__).args[1:]  # Exclude 'self'
+        new_obj = type(self)(**{k: v for k, v in vars(self).items() if k in init_arg_names})
+        memo[id(self)] = new_obj
+
+        # Copy all non-OpenAI attributes
+        for name, value in self.__dict__.items():
+            if name == 'completion_condition':
+                if value.get('details') and value['details'].get('llm'):
+                    # Create a copy of the value dictionary
+                    value_copy = value.copy()
+                    llm = value_copy['details']['llm']
+                    value_copy['details']['llm'] = type(llm)(api_key=llm.api_key,log_on=self.log_on)  # replace with the updated value
+                    # Set the attribute to the updated copy
+                    setattr(new_obj, name, value_copy)
+            elif name != 'llm':
+                try:
+                    setattr(new_obj, name, copy.deepcopy(value, memo))
+                except Exception as e:
+                    self.log("error", self, f"""Couldn't copy {name}, error: {e}""")
+                    self.log("error", self, f"""Value: {value}""")
+                    self.log("error", self, f"""Value type: {type(value)}""")
+                    # print(f"""TMP Couldn't copy {name}, error: {e}""")
+                    # print(f"""TMP Value: {value}""")
+                    # print(f"""TMP Value type: {type(value)}""")
+
+        new_obj.llm = type(self.llm)(api_key=self.llm.api_key,log_on=self.log_on)
+
+        return new_obj
+
+
+
+    def __str__(self):
+        # Create a copy of the object's dictionary
+        obj_dict = vars(self).copy()
+
+        # Remove the 'macroflow' key from the copy
+        obj_dict.pop('macroflow', None)
+
+        # Serialize the copy
+        return json.dumps(obj_dict, default=str)
+
+
+
+    def mif_state_serialized(self):
+        return json.dumps({
+            "id": self.id,
+            "name": self.name,
+            "mif_status": self.mif_status,
+            "data": self.data
+        }, default=str)
+
+
 
