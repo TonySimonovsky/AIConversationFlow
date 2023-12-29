@@ -1,4 +1,7 @@
-# AI Conversation Flow Library
+# AIConversationFlow
+
+## Anti-agents. A Conversational AI abstraction for complex non-linear interfaces, enabling Composability, Controllability, and Testability
+
 Current Version: 0.0.4. A very early version, for presentation purposes. Use at your own risk.
 
 This library provides a framework for managing conversation flows with LLM's, that are composable, controllable and easily testable.
